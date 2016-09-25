@@ -59,7 +59,11 @@ public class Proxy {
     }
     
     public void setUrl(String url){
-        this.url = url;
+        if( url.substring(url.length()-1).equals("/") )
+            this.url = url.substring(0, url.length()-1);
+        else
+            this.url = url;
+        //this.url = url;
     }
     
     public void setSalt(String salt){
@@ -75,10 +79,16 @@ public class Proxy {
         url += "&attendeePW=" + attendeePW;
         url += "&welcome=" + getStringEncoded(welcome);
         url += "&logoutURL=" + getStringEncoded(logoutURL);
-        url += "&maxParticipants=" + maxParticipants;
         url += "&voiceBridge=" + voiceBridge;
-        url += "&dialNumber=" + dialNumber;
-        url += "&webVoice=" + webVoice;
+        if ( maxParticipants != null ) {
+            url += "&maxParticipants=" + maxParticipants;
+        }
+        if ( dialNumber != null ) {
+            url += "&dialNumber=" + dialNumber;
+        }
+        if ( webVoice != null ) {
+            url += "&webVoice=" + webVoice;
+        }
         url += "&record=" + record;
         url += "&duration=" + duration;
         url += "&" + meta;

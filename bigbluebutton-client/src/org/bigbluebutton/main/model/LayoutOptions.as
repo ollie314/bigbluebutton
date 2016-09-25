@@ -24,22 +24,20 @@ package org.bigbluebutton.main.model
 	{
 		[Bindable] public var showDebugWindow:Boolean = true;
 		[Bindable] public var showLogButton:Boolean = true;
-		[Bindable] public var showVideoLayout:Boolean = true;
-		[Bindable] public var showResetLayout:Boolean = true;
 		[Bindable] public var showToolbar:Boolean = true;
     [Bindable] public var showFooter:Boolean = true;
-        [Bindable] public var showMeetingName:Boolean = true;
+    [Bindable] public var showMeetingName:Boolean = true;
 		[Bindable] public var showHelpButton:Boolean = true;
 		[Bindable] public var showLogoutWindow:Boolean = true;
 		[Bindable] public var showLayoutTools:Boolean = true;
-		[Bindable] public var showNetworkMonitor:Boolean = true;
 		[Bindable] public var confirmLogout:Boolean = true;
+		[Bindable] public var showRecordingNotification:Boolean = true;
 		
 		
     public var defaultLayout:String = "Default";
     
 		public function parseOptions():void {
-			var vxml:XML = BBB.initConfigManager().config.layout;
+			var vxml:XML = BBB.getConfigManager().config.layout;
 			if (vxml != null) {
 				if (vxml.@showDebugWindow != undefined) {
 					showDebugWindow = (vxml.@showDebugWindow.toString().toUpperCase() == "TRUE") ? true : false;
@@ -47,14 +45,6 @@ package org.bigbluebutton.main.model
 
 				if (vxml.@showLogButton != undefined) {
 					showLogButton = (vxml.@showLogButton.toString().toUpperCase() == "TRUE") ? true : false;
-				}
-				
-				if (vxml.@showVideoLayout != undefined) {
-					showVideoLayout = (vxml.@showVideoLayout.toString().toUpperCase() == "TRUE") ? true : false;
-				}
-				
-				if (vxml.@showResetLayout != undefined) {
-					showResetLayout = (vxml.@showResetLayout.toString().toUpperCase() == "TRUE") ? true : false;
 				}
 				
 				if (vxml.@showToolbar != undefined) {
@@ -89,10 +79,9 @@ package org.bigbluebutton.main.model
 			showLayoutTools = (vxml.@showLayoutTools.toString().toUpperCase() == "TRUE") ? true : false;
 		}
 		
-		if(vxml.@showNetworkMonitor != undefined){
-			showNetworkMonitor = (vxml.@showNetworkMonitor.toString().toUpperCase() == "TRUE") ? true : false;
+		if(vxml.@showRecordingNotification != undefined){
+			showRecordingNotification = (vxml.@showRecordingNotification.toString().toUpperCase() == "TRUE") ? true : false;
 		}
-		
 			}
 		}
 		

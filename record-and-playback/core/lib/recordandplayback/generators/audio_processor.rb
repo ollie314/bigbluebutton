@@ -28,10 +28,15 @@ module BigBlueButton
   class AudioProcessor
     # Process the raw recorded audio to ogg file.
     #   archive_dir - directory location of the raw archives. Assumes there is audio file and events.xml present.
-    #   file_basename - the file name of the audio output. '.webm' will be added
+    #   file_basename - the file name of the audio output. '.webm' and '.ogg' will be added
     #
     def self.process(archive_dir, file_basename)
       audio_edl = BigBlueButton::AudioEvents.create_audio_edl(archive_dir)
+      BigBlueButton::EDL::Audio.dump(audio_edl)
+
+      BigBlueButton.logger.info("Applying recording start stop events:")
+      audio_edl = BigBlueButton::Events.edl_match_recording_marks_audio(audio_edl, archive_dir)
+      BigBlueButton::EDL::Audio.dump(audio_edl)
 
       audio_dir = "#{archive_dir}/audio"
       events_xml = "#{archive_dir}/events.xml"
@@ -40,13 +45,14 @@ module BigBlueButton
 
       ogg_format = {
         :extension => 'ogg',
-        :parameters => [ [ '-c:a', 'libvorbis', '-b:a', '32K', '-f', 'ogg' ] ]
+        :parameters => [ [ '-c:a', 'libvorbis', '-q:a', '2', '-f', 'ogg' ] ]
       }
       BigBlueButton::EDL.encode(wav_file, nil, ogg_format, file_basename)
 
       webm_format = {
         :extension => 'webm',
-        :parameters => [ [ '-c:a', 'libvorbis', '-b:a', '32K', '-f', 'webm' ] ]
+        :parameters => [ [ '-c:a', 'libvorbis', '-q:a', '2', '-f', 'webm' ] ],
+        :postprocess => [ [ 'mkclean', '--quiet', ':input', ':output' ] ]
       }
       BigBlueButton::EDL.encode(wav_file, nil, webm_format, file_basename)
     end

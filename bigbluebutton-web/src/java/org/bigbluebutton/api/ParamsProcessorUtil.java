@@ -19,7 +19,6 @@
 
 package org.bigbluebutton.api;
 
-import javax.servlet.ServletRequest;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
@@ -28,9 +27,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang.RandomStringUtils;
 import org.apache.commons.lang.StringUtils;
@@ -41,70 +43,72 @@ import org.apache.commons.httpclient.*;
 import org.apache.commons.httpclient.methods.*;
 
 public class ParamsProcessorUtil {
-	private static Logger log = LoggerFactory.getLogger(ParamsProcessorUtil.class);
-	
-	private final String URLDECODER_SEPARATOR=",";
-	
-	private String apiVersion;
-	private boolean serviceEnabled = false;
-	private String securitySalt;
-	private int defaultMaxUsers = 20;
-	private String defaultWelcomeMessage;
-	private String defaultWelcomeMessageFooter;
-	private String defaultDialAccessNumber;
-	private String testVoiceBridge;
-	private String testConferenceMock;
-	private String defaultLogoutUrl;
-	private String defaultServerUrl;
-	private int defaultNumDigitsForTelVoice;
-	private String defaultClientUrl;
-	private String defaultAvatarURL;
-	private String defaultConfigURL;
-	private int defaultMeetingDuration;
-	private boolean disableRecordingDefault;
-	
-	private String substituteKeywords(String message, String dialNumber, String telVoice, String meetingName) {
-	    String welcomeMessage = message;
-	    
-	    String DIAL_NUM = "%%DIALNUM%%";
-	    String CONF_NUM = "%%CONFNUM%%";
-	    String CONF_NAME = "%%CONFNAME%%"; 
-	    ArrayList<String> keywordList = new ArrayList<String>();
-	    keywordList.add(DIAL_NUM);keywordList.add(CONF_NUM);keywordList.add(CONF_NAME);
+    private static Logger log = LoggerFactory.getLogger(ParamsProcessorUtil.class);
 
-	    Iterator<String> itr = keywordList.iterator();
-	    while(itr.hasNext()) {
-	    	String keyword = (String) itr.next();
-	    	if (keyword.equals(DIAL_NUM)) {
-	          welcomeMessage = welcomeMessage.replaceAll(DIAL_NUM, dialNumber);
-	    	} else if (keyword.equals(CONF_NUM)) {
-	          welcomeMessage = welcomeMessage.replaceAll(CONF_NUM, telVoice);
-	    	} else if (keyword.equals(CONF_NAME)) {
-	          welcomeMessage = welcomeMessage.replaceAll(CONF_NAME, meetingName);
-	    	}     
-	    }	
-	    return  welcomeMessage;		
-	}
+    private final String URLDECODER_SEPARATOR=",";
+    private final String FILTERDECODER_SEPARATOR_ELEMENTS=":";
+    private final String FILTERDECODER_SEPARATOR_OPERATORS="\\|";
 
-	
-	public void processRequiredCreateParams(Map<String, String> params, ApiErrors errors) {
-	    // Do we have a checksum? If not, complain.
-	    if (StringUtils.isEmpty(params.get("checksum"))) {
-	      errors.missingParamError("checksum");
-	    }
-/*	    
-	    // Do we have a meeting name? If not, complain.
-	    String meetingName = params.get("name");
-	    if (StringUtils.isEmpty(meetingName) ) {
-	      errors.missingParamError("name");
-	    }
-*/	    
-	    // Do we have a meeting id? If not, complain.
-	    String externalMeetingId = params.get("meetingID");
-	    if (StringUtils.isEmpty(externalMeetingId)) {
-	      errors.missingParamError("meetingID");
-	    }
-	}
+    private String apiVersion;
+    private boolean serviceEnabled = false;
+    private String securitySalt;
+    private int defaultMaxUsers = 20;
+    private String defaultWelcomeMessage;
+    private String defaultWelcomeMessageFooter;
+    private String defaultDialAccessNumber;
+    private String testVoiceBridge;
+    private String testConferenceMock;
+    private String defaultLogoutUrl;
+    private String defaultServerUrl;
+    private int defaultNumDigitsForTelVoice;
+    private String defaultClientUrl;
+    private String defaultAvatarURL;
+    private String defaultConfigURL;
+    private int defaultMeetingDuration;
+    private boolean disableRecordingDefault;
+    private boolean autoStartRecording;
+    private boolean allowStartStopRecording;
+
+    private String defaultConfigXML = null;
+
+    private String substituteKeywords(String message, String dialNumber, String telVoice, String meetingName) {
+        String welcomeMessage = message;
+
+        String DIAL_NUM = "%%DIALNUM%%";
+        String CONF_NUM = "%%CONFNUM%%";
+        String CONF_NAME = "%%CONFNAME%%";
+        ArrayList<String> keywordList = new ArrayList<String>();
+        keywordList.add(DIAL_NUM);keywordList.add(CONF_NUM);keywordList.add(CONF_NAME);
+
+        Iterator<String> itr = keywordList.iterator();
+        while(itr.hasNext()) {
+            String keyword = (String) itr.next();
+            if (keyword.equals(DIAL_NUM)) {
+                welcomeMessage = welcomeMessage.replaceAll(DIAL_NUM, dialNumber);
+            } else if (keyword.equals(CONF_NUM)) {
+                welcomeMessage = welcomeMessage.replaceAll(CONF_NUM, telVoice);
+            } else if (keyword.equals(CONF_NAME)) {
+                welcomeMessage = welcomeMessage.replaceAll(CONF_NAME, meetingName);
+            }
+        }
+        return  welcomeMessage;
+    }
+
+    public void processRequiredCreateParams(Map<String, String> params, ApiErrors errors) {
+        // Do we have a checksum? If not, complain.
+        if (StringUtils.isEmpty(params.get("checksum"))) {
+            errors.missingParamError("checksum");
+        }
+
+        // Do we have a meeting id? If not, complain.
+        if(!StringUtils.isEmpty(params.get("meetingID"))) {
+            if (StringUtils.isEmpty(StringUtils.strip(params.get("meetingID")))) {
+                errors.missingParamError("meetingID");
+            }
+        } else {
+            errors.missingParamError("meetingID");
+        }
+    }
 
 	public void updateMeeting(Map<String, Object> updateParams, Meeting existing) {
 		// TODO: Assign new values to meeting.
@@ -183,8 +187,7 @@ public class ParamsProcessorUtil {
 	
 	public Map<String, Object> processUpdateCreateParams(Map<String, String> params) {
 		Map<String, Object> newParams = new HashMap<String, Object>();
-		
-	    
+		    
 	    // Do we have a meeting name? If not, complain.
 	    String meetingName = params.get("name");
 	    if (! StringUtils.isEmpty(meetingName) ) {
@@ -259,6 +262,32 @@ public class ParamsProcessorUtil {
 	    return newParams;
 	}
 	
+	private static final Pattern META_VAR_PATTERN = Pattern.compile("meta_[a-zA-Z][a-zA-Z0-9-]*$");	
+	public static Boolean isMetaValid(String param) {
+		Matcher metaMatcher = META_VAR_PATTERN.matcher(param);
+    if (metaMatcher.matches()) {
+    	return true;
+    }	
+		return false;
+	}
+	
+	public static String removeMetaString(String param) {
+		return StringUtils.removeStart(param, "meta_");
+	}
+	
+	public static Map<String, String> processMetaParam(Map<String, String> params) {
+    Map<String, String> metas = new HashMap<String, String>();
+    for (String key: params.keySet()) {
+    	if (isMetaValid(key)){
+    		// Need to lowercase to maintain backward compatibility with 0.81
+    		String metaName = removeMetaString(key).toLowerCase();
+    		metas.put(metaName, params.get(key));
+		  }   
+    }
+    
+    return metas;
+	}
+	
 	public Meeting processCreateParams(Map<String, String> params) {
 	    String meetingName = params.get("name");
 	    if(meetingName == null){
@@ -287,47 +316,84 @@ public class ParamsProcessorUtil {
 	    boolean record = processRecordMeeting(params.get("record"));
 	    int maxUsers = processMaxUser(params.get("maxParticipants"));
 	    int meetingDuration = processMeetingDuration(params.get("duration"));
-	    String welcomeMessage = processWelcomeMessage(params.get("welcome"));
-	    welcomeMessage = substituteKeywords(welcomeMessage, dialNumber, telVoice, meetingName);
-	    	    
+	    
+        // set is breakout room property
+        boolean isBreakout = false;
+        if (!StringUtils.isEmpty(params.get("isBreakout"))) {
+            isBreakout = new Boolean(params.get("isBreakout"));
+        }
+
+        String welcomeMessageTemplate = processWelcomeMessage(params.get("welcome"), isBreakout);
+        String welcomeMessage = substituteKeywords(welcomeMessageTemplate, dialNumber, telVoice, meetingName);
+	      
 	    String internalMeetingId = convertToInternalMeetingId(externalMeetingId);
 	    
 	    // Check if this is a test meeting. NOTE: This should not belong here. Extract this out.				
 	    if (isTestMeeting(telVoice)) {
 	      internalMeetingId = getIntMeetingIdForTestMeeting(telVoice);
 	    }
+	   
+	    boolean autoStartRec = autoStartRecording;
+	    if (!StringUtils.isEmpty(params.get("autoStartRecording"))) {
+				try {
+					autoStartRec = Boolean.parseBoolean(params.get("autoStartRecording"));
+				} catch(Exception ex){ 
+					log.warn("Invalid param [autoStartRecording] for meeting=[" + internalMeetingId + "]");
+				}
+	    }
+
+	    boolean allowStartStoptRec = allowStartStopRecording;
+	    if (!StringUtils.isEmpty(params.get("allowStartStopRecording"))) {
+				try {
+					allowStartStoptRec = Boolean.parseBoolean(params.get("allowStartStopRecording"));
+				} catch(Exception ex){ 
+					log.warn("Invalid param [allowStartStopRecording] for meeting=[" + internalMeetingId + "]");
+				}
+	    }
 	    
 	    // Collect metadata for this meeting that the third-party app wants to store if meeting is recorded.
 	    Map<String, String> meetingInfo = new HashMap<String, String>();
-	    for (String key: params.keySet()) {
-	    	if (key.contains("meta")&&key.indexOf("meta")==0){
-	    		String[] meta = key.split("_");
-			    if(meta.length == 2){
-			    	log.debug("Got metadata {} = {}", key, params.get(key));
-			    	meetingInfo.put(meta[1].toLowerCase(), params.get(key));
-			    }
-			}   
-	    }
+	    meetingInfo = processMetaParam(params);
 	    	    
 	    // Create a unique internal id by appending the current time. This way, the 3rd-party
 	    // app can reuse the external meeting id.
 	    long createTime = System.currentTimeMillis();
 	    internalMeetingId = internalMeetingId + '-' + new Long(createTime).toString();
-	    
-	    // Create the meeting with all passed in parameters.
-	    Meeting meeting = new Meeting.Builder(externalMeetingId, internalMeetingId, createTime)
-	        .withName(meetingName).withMaxUsers(maxUsers).withModeratorPass(modPass)
-	        .withViewerPass(viewerPass).withRecording(record).withDuration(meetingDuration)
-	        .withLogoutUrl(logoutUrl).withTelVoice(telVoice).withWebVoice(webVoice).withDialNumber(dialNumber)
-	        .withDefaultAvatarURL(defaultAvatarURL)
-	        .withMetadata(meetingInfo).withWelcomeMessage(welcomeMessage).build();
-	    
-	    String configXML = getDefaultConfigXML();
-	    meeting.storeConfig(true, configXML);
-	    
-	    return meeting;
+
+        // If this create meeting request is for a breakout room, we just used
+        // the passed in breakoutId as the internal meetingId so we can
+        // correlate
+        // the breakout meeting with it's parent meeting.
+        if (isBreakout) {
+            internalMeetingId = params.get("breakoutId");
+        }
+
+        // Create the meeting with all passed in parameters.
+        Meeting meeting = new Meeting.Builder(externalMeetingId,
+                internalMeetingId, createTime).withName(meetingName)
+                .withMaxUsers(maxUsers).withModeratorPass(modPass)
+                .withViewerPass(viewerPass).withRecording(record)
+                .withDuration(meetingDuration).withLogoutUrl(logoutUrl)
+                .withTelVoice(telVoice).withWebVoice(webVoice)
+                .withDialNumber(dialNumber)
+                .withDefaultAvatarURL(defaultAvatarURL)
+                .withAutoStartRecording(autoStartRec)
+                .withAllowStartStopRecording(allowStartStoptRec)
+                .withMetadata(meetingInfo)
+                .withWelcomeMessageTemplate(welcomeMessageTemplate)
+                .withWelcomeMessage(welcomeMessage).isBreakout(isBreakout)
+                .build();
+
+        String configXML = getDefaultConfigXML();
+        meeting.storeConfig(true, configXML);
+
+        if (!StringUtils.isEmpty(params.get("moderatorOnlyMessage"))) {
+            String moderatorOnlyMessage = params.get("moderatorOnlyMessage");
+            meeting.setModeratorOnlyMessage(moderatorOnlyMessage);
+        }
+
+        return meeting;
 	}
-	
 	
 	public String getApiVersion() {
 		return apiVersion;
@@ -342,7 +408,9 @@ public class ParamsProcessorUtil {
 	}
 	
 	public String getDefaultConfigXML() {
-		return getConfig(defaultConfigURL);
+		defaultConfigXML = getConfig(defaultConfigURL);
+		
+		return defaultConfigXML;
 	}
 	
 	private String getConfig(String url) {
@@ -350,14 +418,19 @@ public class ParamsProcessorUtil {
 		GetMethod get = new GetMethod(url);
 		String configXML = "";
 		try {
-			client.executeMethod(get);
-			configXML = get.getResponseBodyAsString();
+			int status = client.executeMethod(get);
+			if (status == 200) {
+				configXML = get.getResponseBodyAsString();
+			} else {
+				return null;
+			}
+			
 		} catch (HttpException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			return null;
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			return null;
+		} finally {
+			get.releaseConnection();
 		}
 		  		  
 		return configXML;
@@ -375,15 +448,15 @@ public class ParamsProcessorUtil {
      	}
 	}
 	
-	public String processWelcomeMessage(String message) {
-		String welcomeMessage = message;
-		if (StringUtils.isEmpty(message)) {
-			welcomeMessage = defaultWelcomeMessage;
-		}
-		if( !StringUtils.isEmpty(defaultWelcomeMessageFooter) )
-		    welcomeMessage += "<br><br>" + defaultWelcomeMessageFooter;
-		return welcomeMessage;
-	}
+    public String processWelcomeMessage(String message, Boolean isBreakout) {
+        String welcomeMessage = message;
+        if (StringUtils.isEmpty(message)) {
+            welcomeMessage = defaultWelcomeMessage;
+        }
+        if (!StringUtils.isEmpty(defaultWelcomeMessageFooter) && !isBreakout)
+            welcomeMessage += "<br><br>" + defaultWelcomeMessageFooter;
+        return welcomeMessage;
+    }
 
 	public String convertToInternalMeetingId(String extMeetingId) {
 		return DigestUtils.shaHex(extMeetingId);
@@ -482,38 +555,38 @@ public class ParamsProcessorUtil {
 		}
         
 		String cs = DigestUtils.shaHex(meetingID + configXML + securitySalt);
-		log.debug("our checksum: [{}], client: [{}]", cs, checksum);
-		System.out.println("our checksum: [" + cs + "] client: [" + checksum + "]");
+
 		if (cs == null || cs.equals(checksum) == false) {
-			log.info("checksumError: request did not pass the checksum security check");
+			log.info("checksumError: configXML checksum. our: [{}], client: [{}]", cs, checksum);
 			return false;
 		}
-		log.debug("checksum ok: request passed the checksum security check");
 		return true;
 	}
 	
 	public boolean isChecksumSame(String apiCall, String checksum, String queryString) {
-		log.debug("checksum: [{}] ; query string: [{}]", checksum, queryString);
-	
 		if (StringUtils.isEmpty(securitySalt)) {
 			log.warn("Security is disabled in this service. Make sure this is intentional.");
 			return true;
 		}
-		
-		// handle either checksum as first or middle / end parameter
-		// TODO: this is hackish - should be done better
-		queryString = queryString.replace("&checksum=" + checksum, "");
-		queryString = queryString.replace("checksum=" + checksum + "&", "");
-		queryString = queryString.replace("checksum=" + checksum, "");
-		
-		log.debug("query string after checksum removed: [{}]", queryString);
+
+		if( queryString == null ) {
+		    queryString = "";
+		} else {
+		    // handle either checksum as first or middle / end parameter
+		    // TODO: this is hackish - should be done better
+		    queryString = queryString.replace("&checksum=" + checksum, "");
+		    queryString = queryString.replace("checksum=" + checksum + "&", "");
+		    queryString = queryString.replace("checksum=" + checksum, "");
+		}
+
 		String cs = DigestUtils.shaHex(apiCall + queryString + securitySalt);
-		log.debug("our checksum: [{}], client: [{}]", cs, checksum);
+
 		if (cs == null || cs.equals(checksum) == false) {
-			log.info("checksumError: request did not pass the checksum security check");
+			log.info("query string after checksum removed: [{}]", queryString);
+			log.info("checksumError: query string checksum failed. our: [{}], client: [{}]", cs, checksum);
 			return false;
 		}
-		log.debug("checksum ok: request passed the checksum security check");
+
 		return true; 
 	}
 	
@@ -547,7 +620,12 @@ public class ParamsProcessorUtil {
 				csbuf.append("=");
 				String encResult;
 
-				try {       
+				encResult = value;
+				
+/*****
+ * Seems like Grails 2.3.6 decodes the string. So we need to re-encode it.
+ * We'll remove this later. richard (aug 5, 2014)						
+*/				try {       
 					// we need to re-encode the values because Grails unencoded it
 					// when it received the 'POST'ed data. Might not need to do in a GET request.
 					encResult = URLEncoder.encode(value, "UTF-8");  
@@ -560,19 +638,15 @@ public class ParamsProcessorUtil {
 		}
 		csbuf.append(securitySalt);
 
-		String baseString = csbuf.toString();
-
-   // System.out.println( "POST basestring = [" + baseString + "]");
-
+		String baseString = csbuf.toString();				
 		String cs = DigestUtils.shaHex(baseString);
- 		//System.out.println("our checksum: [" + cs + "], client: [" + checksum + "]");
-		//log.debug("our checksum: [{}], client: [{}]", cs, checksum);
-
+		
 		if (cs == null || cs.equals(checksum) == false) {
-			log.info("checksumError: request did not pass the checksum security check");
+			log.info("POST basestring = [" + baseString + "]");
+			log.info("checksumError: failed checksum. our checksum: [{}], client: [{}]", cs, checksum);
 			return false;
 		}
-		log.debug("checksum ok: request passed the checksum security check");
+
 		return true;
 	}
 
@@ -644,11 +718,19 @@ public class ParamsProcessorUtil {
 		this.disableRecordingDefault = disabled;
 	}
 	
+	public void setAutoStartRecording(boolean start) {
+		this.autoStartRecording = start;
+	}
+
+	public void setAllowStartStopRecording(boolean allowStartStopRecording) {
+		this.allowStartStopRecording = allowStartStopRecording;
+	}
+	
 	public void setdefaultAvatarURL(String url) {
 		this.defaultAvatarURL = url;
 	}
-	
-	public ArrayList<String> decodeIds(String encodeid){
+
+	public ArrayList<String> decodeIds(String encodeid) {
 		ArrayList<String> ids=new ArrayList<String>();
 		try {
 			ids.addAll(Arrays.asList(URLDecoder.decode(encodeid,"UTF-8").split(URLDECODER_SEPARATOR)));
@@ -658,7 +740,7 @@ public class ParamsProcessorUtil {
 		
 		return ids;
 	}
-	
+
 	public ArrayList<String> convertToInternalMeetingId(ArrayList<String> extMeetingIds) {
 		ArrayList<String> internalMeetingIds=new ArrayList<String>();
 		for(String extid : extMeetingIds){
@@ -667,9 +749,9 @@ public class ParamsProcessorUtil {
 		return internalMeetingIds;
 	}
 	
-	public Map<String,String> getUserCustomData(Map<String,String> params){
+	public Map<String,String> getUserCustomData(Map<String,String> params) {
 		Map<String,String> resp = new HashMap<String, String>();
-		
+
 		for (String key: params.keySet()) {
 	    	if (key.contains("userdata")&&key.indexOf("userdata")==0){
 	    		String[] userdata = key.split("-");
@@ -679,7 +761,28 @@ public class ParamsProcessorUtil {
 			    }
 			}   
 	    }
-		
+
 		return resp;
 	}
+
+	public Map<String, Map<String, Object>> decodeFilters(String encodedFilters) {
+        Map<String, Map<String, Object>> filters = new LinkedHashMap<String, Map<String, Object>>();
+
+        try {
+            String[] sFilters = encodedFilters.split(URLDECODER_SEPARATOR);
+            for( String sFilter: sFilters) {
+                String[] filterElements = sFilter.split(FILTERDECODER_SEPARATOR_ELEMENTS, 3);
+                Map<String, Object> filter = new LinkedHashMap<String, Object>();
+                filter.put("op", filterElements[1]);
+                String[] fValues = filterElements[2].split(FILTERDECODER_SEPARATOR_OPERATORS);
+                filter.put("values", fValues );
+                filters.put(filterElements[0], filter);
+            }
+        } catch (Exception e) {
+            log.error("Couldn't decode the filters");
+        }
+
+        return filters;
+    }
+
 }

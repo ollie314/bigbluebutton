@@ -21,20 +21,19 @@ package org.bigbluebutton.main.model.modules
 	import flash.utils.Dictionary;
 	
 	import mx.collections.ArrayCollection;
-	import mx.controls.Alert;
 	
-	import org.bigbluebutton.common.LogUtil;
+	import org.as3commons.logging.api.ILogger;
+	import org.as3commons.logging.api.getClassLogger;
 
 	public class DependancyResolver
 	{
+		private static const LOGGER:ILogger = getClassLogger(DependancyResolver);      
+
 		private var _modules:Dictionary;
 		
-		public function DependancyResolver()
-		{
-		}
-		
 		/**
-		 * Creates a dependency tree for modules using a topological sort algorithm (Khan, 1962, http://portal.acm.org/beta/citation.cfm?doid=368996.369025)
+		 * Creates a dependency tree for modules using a topological sort algorithm 
+		 * (Khan, 1962, http://portal.acm.org/beta/citation.cfm?doid=368996.369025)
 		 */
 		public function buildDependencyTree(modules:Dictionary):ArrayCollection{
 			this._modules = modules;
@@ -63,13 +62,8 @@ package org.bigbluebutton.main.model.modules
 				var m2:ModuleDescriptor = _modules[key2] as ModuleDescriptor;
 				if (m2.unresolvedDependancies.length != 0){
 					throw new Error("Modules have circular dependancies, please check your config file. Unresolved: " + 
-													m2.getName() + " depends on " + m2.unresolvedDependancies.toString());
+								m2.getName() + " depends on " + m2.unresolvedDependancies.toString());
 				}
-			}
-			LogUtil.debug("Dependency Order: ");
-			for (var u:int = 0; u<sorted.length; u++){
-				LogUtil.debug(((sorted.getItemAt(u) as ModuleDescriptor).getName()));
-				//Alert.show((sorted.getItemAt(u) as ModuleDescriptor).getAttribute("name") as String);
 			}
 
 			return sorted;

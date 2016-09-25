@@ -18,15 +18,20 @@
  */
 package org.bigbluebutton.core.model
 {
-	import org.bigbluebutton.common.LogUtil;
+	import flash.utils.Dictionary;
+	
+	import org.bigbluebutton.main.model.modules.ModuleDescriptor;
 
 	public class Config
 	{
 		private var config:XML = null;
+		private var _modules:Dictionary;
+		private var _numModules:int;
 		
 		public function Config(config:XML)
 		{
 			this.config = config;
+			buildModuleDescriptors();
 		}
 
 		public function get help():Object {
@@ -44,6 +49,7 @@ package org.bigbluebutton.core.model
 		public function get locale():Object {
 			var v:Object = new Object();
 			v.version = config.localeversion;
+			v.suppressWarning = config.localeversion.@suppressWarning;
 			return v;
 		}
 			
@@ -55,6 +61,7 @@ package org.bigbluebutton.core.model
 			var p:Object = new Object();
 			p.host = config.porttest.@host;
 			p.application = config.porttest.@application;
+			p.timeout = config.porttest.@timeout;
 			return p;
 		}
 			
@@ -83,13 +90,21 @@ package org.bigbluebutton.core.model
 			a.url = config.skinning.@url;
 			return a
 		}
-					
-		public function get layout():XML {
-			return new XML(config.layout.toXMLString());
-		}
 		
+		public function get browserVersions():XML {
+			return new XML(config.browserVersions.toXMLString());
+		}
+
+	    public function get layout():XML {
+	      return new XML(config.layout.toXMLString());
+	    }
+    	
 		public function get meeting():XML {
 			return new XML(config.meeting.toXMLString());
+		}
+
+		public function get logging():XML {
+			return new XML(config.logging.toXMLString());
 		}
 		
 		public function get lock():XML {
@@ -109,12 +124,46 @@ package org.bigbluebutton.core.model
 			}	
 			return found;
 		}
-			
+		
+		public function numberOfModules():int {
+			return _numModules;
+		}
+		
 		public function getConfigFor(moduleName:String):XML {
 			if (isModulePresent(moduleName)) {
 					return new XML(config.modules.module.(@name.toUpperCase() == moduleName.toUpperCase()).toXMLString());
 			}
 			return null;
+		}
+				
+		public function getModules():Dictionary{
+			return _modules;
+		}
+		
+		public function getModulesXML():XMLList{
+			return config.modules.module;
+		}
+		
+		private function buildModuleDescriptors():Dictionary{	
+			_modules = new Dictionary();
+			var list:XMLList = getModulesXML();
+			var item:XML;
+			for each(item in list){
+				var mod:ModuleDescriptor = new ModuleDescriptor(item);
+				_modules[item.@name] = mod;
+				_numModules++;
+			}
+			return _modules;
+		}
+		
+		public function getModuleFor(name:String):ModuleDescriptor {
+			for (var key:Object in _modules) {				
+				var m:ModuleDescriptor = _modules[key] as ModuleDescriptor;
+				if (m.getName() == name) {
+					return m;
+				}
+			}		
+			return null;	
 		}
 	}
 }

@@ -24,7 +24,8 @@ module BigBlueButton
   module EDL
     module Video
       FFMPEG_WF_CODEC = 'mpeg2video'
-      FFMPEG_WF_ARGS = ['-an', '-codec', FFMPEG_WF_CODEC, '-q:v', '2', '-pix_fmt', 'yuv420p', '-r', '24', '-f', 'mpegts']
+      FFMPEG_WF_FRAMERATE = '24'
+      FFMPEG_WF_ARGS = ['-an', '-codec', FFMPEG_WF_CODEC, '-q:v', '2', '-g', '240', '-pix_fmt', 'yuv420p', '-r', FFMPEG_WF_FRAMERATE, '-f', 'mpegts']
       WF_EXT = 'ts'
 
       def self.dump(edl)
@@ -144,6 +145,18 @@ module BigBlueButton
             end
           end
 
+          # Pull in timestamps from the next entry to respect edit cuts
+          next_entry[:areas].each do |area, videos|
+            videos.each do |video|
+              merged_video = merged_entry[:areas][area].find do |v|
+                v[:filename] == video[:filename]
+              end
+              if !merged_video.nil?
+                merged_video[:timestamp] = video[:timestamp]
+              end
+            end
+          end
+
           entries_i[next_edl] += 1
           if entries_i[next_edl] >= edls[next_edl].length
             done[next_edl] = true
@@ -177,7 +190,7 @@ module BigBlueButton
           info = video_info(videofile)
           BigBlueButton.logger.debug "    width: #{info[:width]}, height: #{info[:height]}, duration: #{info[:duration]}"
 
-          if !info[:video] || !info[:video][:nb_read_frames]
+          if !info[:video]
             BigBlueButton.logger.warn "    This video file is corrupt! It will be removed from the output."
             corrupt_videos << videofile
           end
@@ -257,12 +270,19 @@ module BigBlueButton
       def self.video_info(filename)
         IO.popen([*FFPROBE, filename]) do |probe|
           info = JSON.parse(probe.read, :symbolize_names => true)
-          info[:video] = info[:streams].find { |stream| stream[:codec_type] == 'video' }
-          info[:audio] = info[:streams].find { |stream| stream[:codec_type] == 'audio' }
+          return {} if !info
+
+          if info[:streams]
+            info[:video] = info[:streams].find { |stream| stream[:codec_type] == 'video' }
+            info[:audio] = info[:streams].find { |stream| stream[:codec_type] == 'audio' }
+          end
 
           if info[:video]
             info[:width] = info[:video][:width].to_i
             info[:height] = info[:video][:height].to_i
+
+            return {} if info[:width] == 0 or info[:height] == 0
+            return {} if info[:video][:display_aspect_ratio] == '0:0'
 
             info[:aspect_ratio] = info[:video][:display_aspect_ratio].to_r
             if info[:aspect_ratio] == 0
@@ -271,7 +291,11 @@ module BigBlueButton
           end
 
           # Convert the duration to milliseconds
-          info[:duration] = (info[:format][:duration].to_r * 1000).to_i
+          if info[:format]
+            info[:duration] = (info[:format][:duration].to_r * 1000).to_i
+          else
+            info[:duration] = 0
+          end
 
           return info
         end
@@ -364,18 +388,27 @@ module BigBlueButton
             BigBlueButton.logger.debug "      offset: left: #{offset_x}, top: #{offset_y}"
 
             BigBlueButton.logger.debug "      start timestamp: #{video[:timestamp]}"
+            BigBlueButton.logger.debug("      codec: #{videoinfo[video[:filename]][:video][:codec_name].inspect}")
 
-            # Seeking can be pretty inaccurate.
-            # Seek to before the video start; we'll do accurate trimming in
-            # a filter.
-            seek = video[:timestamp] - 30000
-            seek = 0 if seek < 0
+            if videoinfo[video[:filename]][:video][:codec_name] == "flashsv2"
+              # Desktop sharing videos in flashsv2 do not have regular
+              # keyframes, so seeking in them doesn't really work.
+              # To make processing more reliable, always decode them from the
+              # start in each cut.
+              seek = 0
+            else
+              # Webcam videos are variable, low fps; it might be that there's
+              # no frame until some time after the seek point. Start decoding
+              # 30s before the desired point to avoid this issue.
+              seek = video[:timestamp] - 30000
+              seek = 0 if seek < 0
+            end
 
             ffmpeg_inputs << {
               :filename => video[:filename],
               :seek => seek
             }
-            ffmpeg_filter << "[in#{index}]; [#{index}]fps=24,select=gte(t\\,#{ms_to_s(video[:timestamp])}),setpts=PTS-STARTPTS,scale=#{scale_width}:#{scale_height}"
+            ffmpeg_filter << "[in#{index}]; [#{index}]fps=24,trim=start=#{ms_to_s(video[:timestamp])},setpts=PTS-STARTPTS,scale=#{scale_width}:#{scale_height}"
             if layout_area[:pad]
               ffmpeg_filter << ",pad=w=#{tile_width}:h=#{tile_height}:x=#{offset_x}:y=#{offset_y}:color=white"
               offset_x = 0
@@ -392,11 +425,13 @@ module BigBlueButton
           end
         end
 
+        ffmpeg_filter << ",trim=end=#{ms_to_s(duration)}"
+
         ffmpeg_cmd = [*FFMPEG]
         ffmpeg_inputs.each do |input|
           ffmpeg_cmd += ['-ss', ms_to_s(input[:seek]), '-itsoffset', ms_to_s(input[:seek]), '-i', input[:filename]]
         end
-        ffmpeg_cmd += ['-t', ms_to_s(duration), '-filter_complex', ffmpeg_filter, *FFMPEG_WF_ARGS, '-']
+        ffmpeg_cmd += ['-filter_complex', ffmpeg_filter, *FFMPEG_WF_ARGS, '-']
 
         File.open(output, 'a') do |outio|
           exitstatus = BigBlueButton.exec_redirect_ret(outio, *ffmpeg_cmd)

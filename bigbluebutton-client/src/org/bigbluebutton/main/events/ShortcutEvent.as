@@ -50,6 +50,7 @@ package org.bigbluebutton.main.events {
 		public static const SHARE_DESKTOP:String = 'SHARE_DESKTOP';
 		public static const SHARE_MICROPHONE:String = 'SHARE_MICROPHONE';
 		public static const SHARE_WEBCAM:String = 'SHARE_WEBCAM';
+		public static const PAUSE_REMOTE_STREAM:String = 'PAUSE_REMOTE_STREAM';
 		
 		public static const REMOTE_FOCUS_DESKTOP:String = 'REMOTE_FOCUS_DESKTOP';
 		public static const REMOTE_FOCUS_WEBCAM:String = 'REMOTE_FOCUS_WEBCAM';
@@ -70,6 +71,7 @@ package org.bigbluebutton.main.events {
 		public static const FOCUS_CHAT_BOX:String = 'FOCUS_CHAT_BOX';
 		public static const CHANGE_FONT_COLOUR:String = 'CHANGE_FONT_COLOUR';
 		public static const SEND_MESSAGE:String = 'SEND_MESSAGE';
+		public static const CLOSE_PRIVATE:String = 'CLOSE_PRIVATE';
 		
 		//public static const FOCUS_LOOP_END:String = 'FOCUS_LOOP_END';
 		public static const FOCUS_SHORTCUT_BUTTON:String = 'FOCUS_SHORTCUT_BUTTON';

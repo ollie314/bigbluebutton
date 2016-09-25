@@ -23,8 +23,11 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+
+import groovy.util.slurpersupport.GPathResult;
 
 public class Recording {
 	private String id;
@@ -33,16 +36,25 @@ public class Recording {
 	private boolean published;
 	private String startTime;
 	private String endTime;
-	private Map<String, String> metadata = new HashMap<String, String>();
-	private ArrayList<Playback> playbacks=new ArrayList<Playback>();
+	private Map<String, String> metadata = new TreeMap<String, String>();
+	private List<Playback> playbacks=new ArrayList<Playback>();
 	
 	//TODO: 
 	private String state;
 	private String playbackLink;
 	private String playbackFormat;
 	private String playbackDuration;
-	
-	
+	private GPathResult playbackExtensions;
+
+    public static final String STATE_PROCESSING = "processing";
+    public static final String STATE_PROCESSED = "processed";
+    public static final String STATE_PUBLISING = "publishing";
+    public static final String STATE_PUBLISHED = "published";
+    public static final String STATE_UNPUBLISING = "unpublishing";
+    public static final String STATE_UNPUBLISHED = "unpublished";
+    public static final String STATE_DELETING = "deleting";
+    public static final String STATE_DELETED = "deleted";
+
 	public String getId() {
 		return id;
 	}
@@ -52,6 +64,10 @@ public class Recording {
 	}
 	
 	public String getState() {
+	    String state = this.state;
+	    if ( state == null || state.equals("") || state.equals("available") ) {
+	        state = isPublished()? STATE_PUBLISHED: STATE_UNPUBLISHED;
+	    }
 		return state;
 	}
 	
@@ -94,7 +110,7 @@ public class Recording {
 	public String getPlaybackFormat() {
 		return playbackFormat;
 	}
-	
+
 	public void setPlaybackFormat(String playbackFormat) {
 		this.playbackFormat = playbackFormat;
 	}
@@ -106,17 +122,41 @@ public class Recording {
 	public void setPlaybackDuration(String playbackDuration) {
 		this.playbackDuration = playbackDuration;
 	}
-	
-	public Map<String, String> getMetadata() {
-		return metadata;
+
+	public GPathResult getPlaybackExtensions() {
+		return playbackExtensions;
+	}
+
+	public void setPlaybackExtensions(GPathResult playbackExtensions) {
+		this.playbackExtensions = playbackExtensions;
 	}
 	
+	public Map<String, String> getMetadata() {
+		return this.metadata;
+	}
+
+	public String getMetadata(String key) {
+		return this.metadata.get(key);
+	}
+
 	public void setMetadata(Map<String, String> metadata) {
 		this.metadata = metadata;
 	}
 
+	public void updateMetadata(String key, String value) {
+		this.metadata.put(key, value);
+	}
+
+	public void deleteMetadata(String key) {
+		this.metadata.remove(key);
+	}
+
+	public boolean containsMetadata(String key) {
+		return this.metadata.containsKey(key);
+	}
+
 	public String getMeetingID() {
-		return meetingID;
+		return this.meetingID;
 	}
 
 	public void setMeetingID(String meetingID) {
@@ -124,18 +164,18 @@ public class Recording {
 	}
 
 	public String getName() {
-		return name;
+		return this.name;
 	}
 
 	public void setName(String name) {
 		this.name = name;
 	}
 
-	public ArrayList<Playback> getPlaybacks() {
+	public List<Playback> getPlaybacks() {
 		return playbacks;
 	}
 
-	public void setPlaybacks(ArrayList<Playback> playbacks) {
+	public void setPlaybacks(List<Playback> playbacks) {
 		this.playbacks = playbacks;
 	}
 	
