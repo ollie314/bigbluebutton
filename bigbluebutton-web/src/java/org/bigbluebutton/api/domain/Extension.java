@@ -16,21 +16,29 @@
 * with BigBlueButton; if not, see <http://www.gnu.org/licenses/>.
 *
 */
-package org.bigbluebutton.modules.deskshare.events
-{
-	import flash.events.Event;
 
-	public class CursorEvent extends Event
-	{
-		public static const UPDATE_CURSOR_LOC_EVENT:String = "Update sharer cursor event";
-		
-		public var x:Number = 0;
-		public var y:Number = 0;
-		
-		public function CursorEvent(type:String, bubbles:Boolean=true, cancelable:Boolean=false)
-		{
-			super(type, bubbles, cancelable);
-		}
-		
+package org.bigbluebutton.api.domain;
+
+import java.util.Map;
+
+public class Extension {
+	private String type;
+	private Map<String,Object> properties;
+	
+	public Extension(String type, Map<String,Object> properties) {
+		this.type = type;
+		this.properties = properties;
+	}
+	public String getType() {
+		return type;
+	}
+	public void setType(String type) {
+		this.type = type;
+	}
+	public Map<String,Object> getProperties() {
+		return properties;
+	}
+	public void setProperties(Map<String,Object> properties) {
+		this.properties = properties;
 	}
 }

@@ -2,6 +2,9 @@ import React, { Component, PropTypes } from 'react';
 import styles from './styles.scss';
 
 import Button from '../button/component';
+import EmojiContainer from './emoji-menu/container';
+
+import ActionsDropdown from './actions-dropdown/component';
 
 export default class ActionsBar extends Component {
   constructor(props) {
@@ -15,14 +18,7 @@ export default class ActionsBar extends Component {
     return (
       <div className={styles.actionsbar}>
         <div className={styles.left}>
-          <Button
-            onClick={this.handleClick}
-            label={'Actions'}
-            color={'primary'}
-            icon={'circle-add'}
-            size={'lg'}
-            circle={true}
-          />
+          <ActionsDropdown />
         </div>
         <div className={styles.center}>
           <Button
@@ -41,14 +37,7 @@ export default class ActionsBar extends Component {
             size={'lg'}
             circle={true}
           />
-          <Button
-            onClick={this.handleClick}
-            label={'Raise'}
-            color={'primary'}
-            icon={'hand'}
-            size={'lg'}
-            circle={true}
-          />
+          <EmojiContainer />
         </div>
         <div className={styles.right}>
         </div>
